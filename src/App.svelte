@@ -5,6 +5,9 @@
   let scrollY = 0;
   let heroImage;
   let isScrolled = false;
+  let shovelCursor;
+  let shovelDirt;
+  let shovelFling;
 
   const smoothScroll = (event) => {
     const href = event.currentTarget.getAttribute("href");
@@ -31,8 +34,217 @@
       }
       isScrolled = scrollY > 50;
     };
+
+    const prefersFinePointer = window.matchMedia("(pointer: fine)").matches;
+    if (!prefersFinePointer) {
+      window.addEventListener("scroll", handleScroll, { passive: true });
+      return () => window.removeEventListener("scroll", handleScroll);
+    }
+
+    document.body.classList.add("use-custom-cursor");
+
+    let cursorX = 0;
+    let cursorY = 0;
+    let renderX = 0;
+    let renderY = 0;
+    let targetAngle = -35;
+    let renderAngle = -35;
+    let rafId = 0;
+    let cursorVisible = false;
+    let hoveringClickable = false;
+    let digPhase = "idle";
+    let phaseStartAt = 0;
+    let aimFromAngle = -35;
+    let aimToAngle = -35;
+    const DIG_AIM_DURATION_MS = 140;
+    const DIG_DURATION_MS = 260;
+    const DIG_TOTAL_DURATION_MS = DIG_AIM_DURATION_MS + DIG_DURATION_MS;
+    const clickableSelector = "a, button, input, textarea, select, label, [role='button'], [tabindex]:not([tabindex='-1'])";
+    let replayingClick = false;
+    let delayedClickTimeoutId = 0;
+
+    const normalizeAngleDelta = (from, to) => {
+      let delta = to - from;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      return delta;
+    };
+
+    const updateCursorVisibility = (isVisible) => {
+      cursorVisible = isVisible;
+      if (shovelCursor) {
+        shovelCursor.style.opacity = cursorVisible ? "1" : "0";
+      }
+      const showDirt = cursorVisible && (hoveringClickable || digPhase !== "idle");
+      if (shovelDirt) {
+        shovelDirt.style.opacity = showDirt ? "1" : "0";
+      }
+      if (shovelFling && !cursorVisible) {
+        shovelFling.style.opacity = "0";
+      }
+    };
+
+    const renderCursor = () => {
+      const now = performance.now();
+      let digProgress = 0;
+      let digDepth = 0;
+      let upstrokeProgress = 0;
+      let displayedAngle = renderAngle;
+
+      if (digPhase === "aim") {
+        const aimProgress = Math.min((now - phaseStartAt) / DIG_AIM_DURATION_MS, 1);
+        const easedAimProgress = 1 - (1 - aimProgress) * (1 - aimProgress);
+        const aimDelta = normalizeAngleDelta(aimFromAngle, aimToAngle);
+        renderAngle = aimFromAngle + aimDelta * easedAimProgress;
+        displayedAngle = renderAngle;
+        if (aimProgress >= 1) {
+          digPhase = "dig";
+          phaseStartAt = now;
+        }
+      } else if (digPhase === "dig") {
+        digProgress = Math.min((now - phaseStartAt) / DIG_DURATION_MS, 1);
+        if (digProgress <= 0.45) {
+          digDepth = Math.min(digProgress / 0.45, 1);
+          upstrokeProgress = 0;
+        } else {
+          upstrokeProgress = Math.min((digProgress - 0.45) / 0.55, 1);
+          digDepth = 1 - upstrokeProgress;
+        }
+        renderAngle = aimToAngle;
+        displayedAngle = renderAngle + digDepth * 18;
+        if (digProgress >= 1) {
+          digPhase = "idle";
+          if (shovelDirt) {
+            shovelDirt.style.opacity = cursorVisible && hoveringClickable ? "1" : "0";
+          }
+          if (shovelFling) {
+            shovelFling.style.opacity = "0";
+          }
+        }
+      } else {
+        renderAngle += normalizeAngleDelta(renderAngle, targetAngle) * 0.25;
+        displayedAngle = renderAngle;
+      }
+
+      const digOffsetY = digDepth * 7;
+      const digOffsetX = digDepth * 2;
+      const dirtScale = 1 + digDepth * 0.35;
+
+      renderX += (cursorX - renderX) * 0.28;
+      renderY += (cursorY - renderY) * 0.28;
+
+      if (shovelCursor) {
+        shovelCursor.style.transform = `translate3d(${renderX - 27 + digOffsetX}px, ${renderY - 16 + digOffsetY}px, 0) rotate(${displayedAngle}deg)`;
+      }
+      if (shovelDirt) {
+        shovelDirt.style.transform = `translate3d(${renderX - 20}px, ${renderY + 16 + digDepth * 1.5}px, 0) scale(${dirtScale})`;
+      }
+      if (shovelFling) {
+        const flingT = digPhase === "dig" ? upstrokeProgress : 0;
+        const flingActive = digPhase === "dig" && flingT > 0;
+        if (flingActive) {
+          const shovelAngle = (displayedAngle * Math.PI) / 180;
+          const directionX = Math.cos(shovelAngle);
+          const directionY = Math.sin(shovelAngle);
+          const flingDistance = flingT * 28;
+          const flingArc = Math.sin(flingT * Math.PI) * 16;
+          const flingX = -Math.abs(directionX) * flingDistance - flingT * 4;
+          const flingY = -Math.abs(directionY) * flingDistance - flingArc;
+          const flingScale = 0.85 + (1 - flingT) * 0.35;
+          shovelFling.style.opacity = `${1 - flingT * 0.85}`;
+          shovelFling.style.transform = `translate3d(${renderX - 11 + flingX}px, ${renderY + 22 + flingY}px, 0) scale(${flingScale})`;
+        } else {
+          shovelFling.style.opacity = "0";
+        }
+      }
+
+      rafId = window.requestAnimationFrame(renderCursor);
+    };
+
+    const handleMouseMove = (event) => {
+      cursorX = event.clientX;
+      cursorY = event.clientY;
+
+      if (!cursorVisible) {
+        renderX = cursorX;
+        renderY = cursorY;
+        updateCursorVisibility(true);
+      }
+
+      if (event.movementX || event.movementY) {
+        targetAngle = (Math.atan2(event.movementY, event.movementX) * 180) / Math.PI;
+      }
+
+      const targetElement = event.target instanceof Element ? event.target : null;
+      const isClickable = !!targetElement?.closest(clickableSelector);
+      if (isClickable !== hoveringClickable) {
+        hoveringClickable = isClickable;
+        if (shovelDirt) {
+          shovelDirt.style.opacity = cursorVisible && (hoveringClickable || digPhase !== "idle") ? "1" : "0";
+        }
+      }
+    };
+
+    const hideCursor = () => {
+      digPhase = "idle";
+      updateCursorVisibility(false);
+    };
+    const triggerDig = () => {
+      if (!cursorVisible) return;
+      const dirtCenterX = renderX - 20 + 9;
+      const dirtCenterY = renderY + 16 + 6;
+      const shovelTipX = renderX;
+      const shovelTipY = renderY;
+      aimFromAngle = renderAngle;
+      aimToAngle = (Math.atan2(dirtCenterY - shovelTipY, dirtCenterX - shovelTipX) * 180) / Math.PI;
+      digPhase = "aim";
+      phaseStartAt = performance.now();
+      if (shovelDirt) {
+        shovelDirt.style.opacity = cursorVisible ? "1" : "0";
+      }
+    };
+    const handleMouseDown = (event) => {
+      const targetElement = event.target instanceof Element ? event.target : null;
+      if (targetElement?.closest(clickableSelector)) return;
+      triggerDig();
+    };
+    const handleClickCapture = (event) => {
+      if (replayingClick || !cursorVisible) return;
+      if (event.detail === 0) return;
+      const targetElement = event.target instanceof Element ? event.target : null;
+      const clickableTarget = targetElement?.closest(clickableSelector);
+      if (!clickableTarget) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      triggerDig();
+
+      window.clearTimeout(delayedClickTimeoutId);
+      delayedClickTimeoutId = window.setTimeout(() => {
+        if (!clickableTarget.isConnected) return;
+        replayingClick = true;
+        clickableTarget.click();
+        replayingClick = false;
+      }, DIG_TOTAL_DURATION_MS);
+    };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("mouseleave", hideCursor);
+    window.addEventListener("mousedown", handleMouseDown, { passive: true });
+    window.addEventListener("click", handleClickCapture, true);
+    rafId = window.requestAnimationFrame(renderCursor);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseleave", hideCursor);
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("click", handleClickCapture, true);
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(delayedClickTimeoutId);
+      document.body.classList.remove("use-custom-cursor");
+    };
   });
 
   const handleContactSubmit = (event) => {
@@ -69,6 +281,9 @@
 </svelte:head>
 
 <div class="relative min-h-screen overflow-hidden font-sans bg-white">
+  <div class="shovel-cursor" bind:this={shovelCursor} aria-hidden="true"></div>
+  <div class="shovel-dirt" bind:this={shovelDirt} aria-hidden="true"></div>
+  <div class="shovel-fling" bind:this={shovelFling} aria-hidden="true"></div>
   <header class="fixed inset-x-0 top-0 z-30 transition-all duration-300 {isScrolled ? 'py-3' : 'py-5'} backdrop-blur-xl {isScrolled ? 'bg-white/30 shadow-md border-b border-black/5' : 'border-b border-transparent'}">
       <div
         class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 text-black transition-all duration-300"
@@ -86,6 +301,11 @@
           >
           <a
             class="hover:text-black transition-all duration-300 hover:-translate-y-0.5"
+            href="#trusted"
+            on:click={smoothScroll}>Trusted</a
+          >
+          <a
+            class="hover:text-black transition-all duration-300 hover:-translate-y-0.5"
             href="#platform"
             on:click={smoothScroll}>Platform</a
           >
@@ -93,11 +313,6 @@
             class="hover:text-black transition-all duration-300 hover:-translate-y-0.5"
             href="#pricing"
             on:click={smoothScroll}>Pricing</a
-          >
-          <a
-            class="hover:text-black transition-all duration-300 hover:-translate-y-0.5"
-            href="#trusted"
-            on:click={smoothScroll}>Trusted</a
           >
           <a
             class="hover:text-black transition-all duration-300 hover:-translate-y-0.5"
@@ -291,6 +506,60 @@
                 View maps in augmented reality to see exactly where
                 infrastructure is, rather than relying on top-down, unaligned maps.
               </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+<section
+      class="relative overflow-hidden py-24 sm:py-32 bg-white"
+      id="trusted"
+    >
+      <div class="mx-auto max-w-6xl px-6">
+        <div class="grid gap-16 lg:grid-cols-2 lg:items-center">
+          <div
+            class="overflow-hidden rounded-3xl border border-slate-200 shadow-lg">
+            <img
+              src="/teams.png"
+              alt="Construction site with workers"
+              class="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+            />
+          </div>
+          <div>
+            <p
+              class="text-sm font-semibold uppercase tracking-widest text-black/50"
+            >
+              Trusted by field teams
+            </p>
+            <h3
+              class="mt-3 text-4xl font-display font-bold text-black sm:text-5xl"
+            >
+              Built with crews and contractors in mind
+            </h3>
+            <p class="mt-6 text-xl text-black/70 leading-relaxed">
+              From utility locators to general contractors, SubVysion keeps
+              every stakeholder aligned with clean, georeferenced data.
+            </p>
+            <div class="mt-10 flex flex-wrap gap-3">
+              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
+                General contractors
+              </span>
+              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
+                Utility locators
+              </span>
+              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
+                Pipeline builders
+              </span>
+              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
+                Fiber installers
+              </span>
+              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
+                Excavation crews
+              </span>
+              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
+                Civil engineers
+              </span>
             </div>
           </div>
         </div>
@@ -619,60 +888,6 @@
             >
               Book a demo
             </a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-<section
-      class="relative overflow-hidden py-24 sm:py-32 bg-white"
-      id="trusted"
-    >
-      <div class="mx-auto max-w-6xl px-6">
-        <div class="grid gap-16 lg:grid-cols-2 lg:items-center">
-          <div
-            class="overflow-hidden rounded-3xl border border-slate-200 shadow-lg">
-            <img
-              src="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1400&q=80"
-              alt="Construction site with workers"
-              class="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-            />
-          </div>
-          <div>
-            <p
-              class="text-sm font-semibold uppercase tracking-widest text-black/50"
-            >
-              Trusted by field teams
-            </p>
-            <h3
-              class="mt-3 text-4xl font-display font-bold text-black sm:text-5xl"
-            >
-              Built with crews and contractors in mind
-            </h3>
-            <p class="mt-6 text-xl text-black/70 leading-relaxed">
-              From utility locators to general contractors, SubVysion keeps
-              every stakeholder aligned with clean, georeferenced data.
-            </p>
-            <div class="mt-10 flex flex-wrap gap-3">
-              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
-                General contractors
-              </span>
-              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
-                Utility locators
-              </span>
-              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
-                Pipeline builders
-              </span>
-              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
-                Fiber installers
-              </span>
-              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
-                Excavation crews
-              </span>
-              <span class="rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-medium text-black transition-all duration-300 hover:border-black/20 hover:bg-black hover:text-white hover:shadow-md">
-                Civil engineers
-              </span>
-            </div>
           </div>
         </div>
       </div>

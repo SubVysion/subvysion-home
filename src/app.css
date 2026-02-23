@@ -8,14 +8,110 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
-    background: radial-gradient(circle at 20% 12%, rgba(15, 118, 110, 0.06), transparent 26%),
-      radial-gradient(circle at 78% 8%, rgba(37, 99, 235, 0.06), transparent 28%),
-      linear-gradient(180deg, #f6f7fb 0%, #eef2f7 50%, #f6f7fb 100%);
+    @apply bg-white text-black antialiased;
     min-height: 100vh;
   }
 
   a {
-    @apply transition-colors;
+    @apply transition-all duration-300;
+  }
+
+}
+
+@layer components {
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .card-hover:hover {
+    @apply -translate-y-1 shadow-lg;
+  }
+  
+  .btn-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .btn-hover:hover {
+    @apply -translate-y-0.5 shadow-lg;
+  }
+  
+  .text-gradient {
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .shovel-cursor {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 32px;
+    height: 32px;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+    will-change: transform, opacity;
+    transition: opacity 120ms ease-out;
+    background: url('/shovel-cursor.svg') center / contain no-repeat;
+  }
+
+  .shovel-dirt {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 18px;
+    height: 12px;
+    pointer-events: none;
+    z-index: 9998;
+    opacity: 0;
+    will-change: transform, opacity;
+    transition: opacity 120ms ease-out;
+    border-radius: 999px;
+    background:
+      radial-gradient(70% 85% at 18% 62%, rgba(199, 141, 82, 0.95) 0 45%, transparent 48%),
+      radial-gradient(62% 78% at 44% 36%, rgba(154, 102, 56, 0.95) 0 54%, transparent 58%),
+      radial-gradient(64% 82% at 72% 64%, rgba(108, 70, 38, 0.95) 0 53%, transparent 57%),
+      radial-gradient(16% 20% at 28% 36%, rgba(246, 220, 183, 0.45) 0 50%, transparent 54%),
+      radial-gradient(14% 18% at 62% 46%, rgba(255, 233, 198, 0.3) 0 52%, transparent 56%);
+    box-shadow: 0 1px 1px rgba(62, 35, 15, 0.24), 0 3px 6px rgba(48, 26, 10, 0.18);
+    filter: saturate(1.05) contrast(1.03);
+    animation: dirt-jitter 280ms ease-in-out infinite;
+  }
+
+  .shovel-fling {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 26px;
+    height: 16px;
+    pointer-events: none;
+    z-index: 9997;
+    opacity: 0;
+    will-change: transform, opacity;
+    background:
+      radial-gradient(16% 24% at 18% 66%, rgba(128, 82, 44, 0.95) 0 85%, transparent 90%),
+      radial-gradient(14% 20% at 36% 46%, rgba(179, 122, 70, 0.9) 0 84%, transparent 89%),
+      radial-gradient(12% 18% at 52% 70%, rgba(97, 63, 34, 0.92) 0 85%, transparent 90%),
+      radial-gradient(10% 16% at 72% 40%, rgba(158, 104, 56, 0.88) 0 84%, transparent 90%),
+      radial-gradient(8% 14% at 86% 62%, rgba(111, 71, 38, 0.86) 0 84%, transparent 90%);
+    filter: blur(0.1px) saturate(1.08);
+  }
+
+  @keyframes dirt-jitter {
+    0% {
+      filter: saturate(1.05) contrast(1.03) blur(0);
+    }
+    50% {
+      filter: saturate(1.12) contrast(1.06) blur(0.15px);
+    }
+    100% {
+      filter: saturate(1.05) contrast(1.03) blur(0);
+    }
+  }
+
+  .use-custom-cursor,
+  .use-custom-cursor * {
+    cursor: none !important;
   }
 }

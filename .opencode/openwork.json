@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "workspace": {
+    "name": "stratix-home",
+    "createdAt": 1770322228723,
+    "preset": "minimal"
+  },
+  "authorizedRoots": [
+    "/Users/maxwellstone/Code/Personal/stratix-home"
+  ]
+}
