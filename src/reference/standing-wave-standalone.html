@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Standing Wave Field</title>
+<style>
+  /* Minimal host page styling. Delete or replace when integrating
+     into your real site — only the <canvas> and the <script> below
+     are required for the animation itself. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+  }
+  #standing-wave {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+</style>
+</head>
+<body>
+  <canvas id="standing-wave"></canvas>
+<script>
+/* =====================================================================
+   STANDING WAVE FIELD
+   ---------------------------------------------------------------------
+   A scalar height field f(x, y, t) is built from several drifting peaks.
+   Each peak contributes a Gaussian envelope multiplied by a STANDING
+   wave: spatial sin(k*r) times temporal sin(omega*t). The separable
+   form is the mathematical signature of standing waves — nodes (zero
+   crossings) sit at fixed radii regardless of time, while the field
+   oscillates around them.
+   Contour lines (lines of constant f) are traced via marching squares.
+   As peaks drift, the contours flow around them like isolines on a
+   slowly morphing topographic map.
+   No libraries. ~200 lines including comments.
+   ===================================================================== */
+(function standingWave() {
+  const canvas = document.getElementById('standing-wave');
+  const ctx = canvas.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  /* --------- Canvas sizing: handles DPR and window resize --------- */
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = rect.width  * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  const w = () => canvas.width  / dpr;
+  const h = () => canvas.height / dpr;
+  /* --------- Tunable parameters --------- */
+  // Grid resolution. Smaller CELL = smoother curves but more CPU.
+  // CELL=5 is a good balance; CELL=3 is silky but ~3x slower.
+  const CELL = 5;
+  // Contour thresholds. More entries = denser contour mesh.
+  // Span both negative and positive values because the standing-wave
+  // term oscillates around the Gaussian's mean.
+  const LEVELS = [
+    -0.5, -0.35, -0.2, -0.05, 0.1, 0.25, 0.4, 0.55,
+     0.7,  0.85,  1.0,  1.15,
+  ];
+  // Animation speed.
+  const TIME_STEP = 0.012;
+  // Visual style. Strokes use this colour with the alpha varied per level.
+  const STROKE_COLOR = '201, 245, 111';   // CSS RGB triplet (no parens)
+  const LINE_WIDTH = 1;
+  // Peak definitions. Each peak:
+  //   hx, hy:     home position as fractions of canvas width/height
+  //   dx, dy:     drift radius (how far from home the peak orbits)
+  //   px, py:     phase offsets so peaks don't all orbit in sync
+  //   sigma:      Gaussian width (spread of the peak's influence)
+  //   k:          spatial wavenumber (ripples per unit distance)
+  //   omega:      temporal frequency (oscillation speed)
+  //   amp:        wave amplitude relative to the Gaussian's height
+  const PEAKS = [
+    { hx: 0.20, hy: 0.30, dx: 0.03, dy: 0.02, px: 0.0, py: 1.3, sigma: 0.28, k: 18, omega: 1.6, amp: 0.6  },
+    { hx: 0.45, hy: 0.65, dx: 0.04, dy: 0.03, px: 2.1, py: 0.5, sigma: 0.26, k: 22, omega: 1.4, amp: 0.55 },
+    { hx: 0.70, hy: 0.30, dx: 0.03, dy: 0.04, px: 3.4, py: 2.8, sigma: 0.30, k: 16, omega: 1.8, amp: 0.65 },
+    { hx: 0.85, hy: 0.70, dx: 0.04, dy: 0.02, px: 1.2, py: 4.0, sigma: 0.24, k: 20, omega: 1.5, amp: 0.5  },
+  ];
+  /* --------- The height field ---------
+     For each peak: distance r from the (drifting) center, multiplied
+     by a Gaussian envelope so the peak's influence fades with distance.
+     The wave term sin(k*r) * sin(omega*t) is the standing-wave form —
+     spatial and temporal parts are SEPARABLE, so nodes stay put while
+     the field oscillates. */
+  function field(x, y, t, scale, ww, hh) {
+    let sum = 0;
+    for (const p of PEAKS) {
+      const cx = (p.hx + Math.cos(t * 0.3 + p.px) * p.dx) * ww;
+      const cy = (p.hy + Math.sin(t * 0.25 + p.py) * p.dy) * hh;
+      const dx = (x - cx) / scale;
+      const dy = (y - cy) / scale;
+      const r2 = dx * dx + dy * dy;
+      const r  = Math.sqrt(r2);
+      const env = Math.exp(-r2 / (2 * p.sigma * p.sigma));
+      const wave = 1 + p.amp * Math.sin(p.k * r) * Math.sin(p.omega * t);
+      sum += env * wave;
+    }
+    return sum;
+  }
+  /* --------- Marching squares ---------
+     Sample the field on a regular grid; for each cell, look at which
+     of the 4 corners are above the current threshold (4 bits = 16 cases).
+     Each case contributes 0, 1, or 2 line segments connecting where
+     the contour crosses the cell edges. */
+  const lerp = (a, b, k) => (k - a) / (b - a);
+  function drawContours(grid, cols, rows) {
+    for (let li = 0; li < LEVELS.length; li++) {
+      const k = LEVELS[li];
+      // Brighter near the middle of the level range, dimmer at extremes.
+      const distFromMid = Math.abs(li - LEVELS.length / 2) / (LEVELS.length / 2);
+      const alpha = 0.18 + (1 - distFromMid) * 0.4;
+      ctx.strokeStyle = `rgba(${STROKE_COLOR}, ${alpha})`;
+      ctx.beginPath();
+      for (let j = 0; j < rows - 1; j++) {
+        for (let i = 0; i < cols - 1; i++) {
+          const tl = grid[j * cols + i];
+          const tr = grid[j * cols + (i + 1)];
+          const br = grid[(j + 1) * cols + (i + 1)];
+          const bl = grid[(j + 1) * cols + i];
+          let idx = 0;
+          if (tl > k) idx |= 1;
+          if (tr > k) idx |= 2;
+          if (br > k) idx |= 4;
+          if (bl > k) idx |= 8;
+          if (idx === 0 || idx === 15) continue;
+          const x0 = i * CELL, y0 = j * CELL;
+          const x1 = x0 + CELL, y1 = y0 + CELL;
+          const top    = { x: x0 + CELL * lerp(tl, tr, k), y: y0 };
+          const right  = { x: x1,                          y: y0 + CELL * lerp(tr, br, k) };
+          const bottom = { x: x0 + CELL * lerp(bl, br, k), y: y1 };
+          const left   = { x: x0,                          y: y0 + CELL * lerp(tl, bl, k) };
+          switch (idx) {
+            case 1:  ctx.moveTo(left.x, left.y);     ctx.lineTo(top.x, top.y);       break;
+            case 2:  ctx.moveTo(top.x, top.y);       ctx.lineTo(right.x, right.y);   break;
+            case 3:  ctx.moveTo(left.x, left.y);     ctx.lineTo(right.x, right.y);   break;
+            case 4:  ctx.moveTo(right.x, right.y);   ctx.lineTo(bottom.x, bottom.y); break;
+            case 5:
+              ctx.moveTo(left.x, left.y);     ctx.lineTo(top.x, top.y);
+              ctx.moveTo(right.x, right.y);   ctx.lineTo(bottom.x, bottom.y);        break;
+            case 6:  ctx.moveTo(top.x, top.y);       ctx.lineTo(bottom.x, bottom.y); break;
+            case 7:  ctx.moveTo(left.x, left.y);     ctx.lineTo(bottom.x, bottom.y); break;
+            case 8:  ctx.moveTo(left.x, left.y);     ctx.lineTo(bottom.x, bottom.y); break;
+            case 9:  ctx.moveTo(top.x, top.y);       ctx.lineTo(bottom.x, bottom.y); break;
+            case 10:
+              ctx.moveTo(top.x, top.y);       ctx.lineTo(right.x, right.y);
+              ctx.moveTo(left.x, left.y);     ctx.lineTo(bottom.x, bottom.y);        break;
+            case 11: ctx.moveTo(right.x, right.y);   ctx.lineTo(bottom.x, bottom.y); break;
+            case 12: ctx.moveTo(left.x, left.y);     ctx.lineTo(right.x, right.y);   break;
+            case 13: ctx.moveTo(top.x, top.y);       ctx.lineTo(right.x, right.y);   break;
+            case 14: ctx.moveTo(left.x, left.y);     ctx.lineTo(top.x, top.y);       break;
+          }
+        }
+      }
+      ctx.stroke();
+    }
+  }
+  /* --------- Main loop --------- */
+  let t = 0;
+  let grid = null, lastCols = 0, lastRows = 0;
+  function draw() {
+    const ww = w(), hh = h();
+    ctx.clearRect(0, 0, ww, hh);
+    const cols = Math.ceil(ww / CELL) + 1;
+    const rows = Math.ceil(hh / CELL) + 1;
+    if (!grid || cols !== lastCols || rows !== lastRows) {
+      grid = new Float32Array(cols * rows);
+      lastCols = cols;
+      lastRows = rows;
+    }
+    const scale = Math.min(ww, hh);
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        grid[j * cols + i] = field(i * CELL, j * CELL, t, scale, ww, hh);
+      }
+    }
+    ctx.lineWidth = LINE_WIDTH;
+    drawContours(grid, cols, rows);
+    t += TIME_STEP;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

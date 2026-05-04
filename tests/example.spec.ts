@@ -1,6 +1,6 @@
-import { test, expect } from '@playwright/test'';
+import { test, expect } from '@playwright/test';
 
-test('navigate to example.com', async ({ page }) => {
-  await page.goto('http://example.com');
-  await expect(page).toHaveTitle(/Example Domain/i);
+test('home page renders', async ({ page }) => {
+  await page.goto('http://localhost:5173');
+  await expect(page).toHaveTitle(/SubVysion/);
 });

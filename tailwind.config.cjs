@@ -11,8 +11,9 @@ module.exports = {
         }
       },
       fontFamily: {
-        sans: ['"Manrope"', 'Inter', 'system-ui', 'sans-serif'],
-        display: ['"Sora"', 'Inter', 'system-ui', 'sans-serif']
+        sans: ['"Geist"', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['"Geist"', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['"Geist Mono"', 'ui-monospace', 'monospace']
       },
       boxShadow: {
         card: '0 12px 28px rgba(15, 23, 42, 0.08)'

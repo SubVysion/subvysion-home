@@ -1,5 +1,5 @@
 {
-  "name": "stratix-home",
+  "name": "subvysion-home2",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -7,8 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "playwright test",
-    "puppeteer-server": "node tests/puppeteer-server.mjs"
+    "test": "playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.1",

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D Wave Mesh</title>
+<style>
+  /* Minimal host page styling. Delete or replace when integrating
+     into your real site — only the <canvas> and the <script> below
+     are required for the animation itself. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+  }
+  #wave-mesh {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+</style>
+</head>
+<body>
+  <canvas id="wave-mesh"></canvas>
+
+<script>
+/* =====================================================================
+   3D WAVE MESH
+   ---------------------------------------------------------------------
+   A wireframe surface y = f(x, z, t) rendered with a simple pinhole
+   camera. The grid sits on the XZ plane; each point's height is driven
+   by a sum of sines. Lines fade with distance (fog) to sell the depth.
+
+   No libraries. ~100 lines. All tuning parameters at the top of the IIFE.
+   ===================================================================== */
+(function waveMesh() {
+  const canvas = document.getElementById('wave-mesh');
+  const ctx = canvas.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  /* --------- Canvas sizing: handles DPR and window resize --------- */
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = rect.width  * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  const w = () => canvas.width  / dpr;
+  const h = () => canvas.height / dpr;
+
+  /* --------- Tunable parameters --------- */
+
+  // Grid: CELL is the world-unit size of one cell. Using a single value
+  // for both X and Z makes the cells square in world space, so foreground
+  // cells read as squares on screen.
+  const CELL       = 45;
+  const HALF_WIDTH = 1100;   // grid spans [-HALF_WIDTH, +HALF_WIDTH] in X
+  const NEAR_Z     = 40;     // nearest row to camera
+  const FAR_Z      = 2200;   // farthest row
+
+  // Camera: hovers above the plane, tilted downward.
+  //   PITCH = downward tilt (rad). Larger -> more top-down view.
+  //   CAM_Y = height above the plane.
+  //   FOCAL = focal length in pixels. Larger -> flatter perspective.
+  const PITCH = 0.42;
+  const CAM_Y = 180;
+  const FOCAL = 700;
+
+  // Animation speed and visual style.
+  const TIME_STEP  = 0.012;
+  const SCROLL_RATE = 30;                        // wave drift toward camera
+  const LINE_COLOR  = 'rgba(201, 245, 111, ';    // unclosed — alpha appended
+  const LINE_ALPHA  = 0.6;                       // base opacity before fog
+  const LINE_WIDTH  = 1;
+
+  /* --------- Derived constants --------- */
+  const COLS = Math.round((HALF_WIDTH * 2) / CELL) + 1;
+  const ROWS = Math.round((FAR_Z - NEAR_Z)   / CELL) + 1;
+  const cosP = Math.cos(PITCH);
+  const sinP = Math.sin(PITCH);
+
+  /* --------- Height function ---------
+     Four superimposed sine waves with different frequencies and
+     directions. The cross-term (sin(nx*... + nz*...)) is what gives the
+     surface diagonal wave character instead of parallel corrugations. */
+  function waveHeight(x, z, t) {
+    const nx = x / 400;
+    const nz = z / 400;
+    return (
+      Math.sin(nx * 2.0 + t * 0.6) * 34 +
+      Math.sin(nz * 1.5 - t * 0.4) * 44 +
+      Math.sin(nx * 3.5 + nz * 2.0 + t * 0.9) * 22 +
+      Math.sin(nx * 0.8 - nz * 1.2 + t * 0.3) * 28
+    );
+  }
+
+  /* --------- Projection ---------
+     Pinhole camera at (0, CAM_Y, 0) looking along +Z, pitched downward.
+       1. Translate the point into camera-relative coords.
+       2. Rotate by -PITCH around X (equivalent to pitching camera down).
+       3. Divide by the post-rotation Z for perspective.
+     Note the Y flip in the final step: world +Y is up, canvas +Y is down. */
+  function project(x, y, z) {
+    const yc = y - CAM_Y;
+    const yr =  yc * cosP + z * sinP;
+    const zr = -yc * sinP + z * cosP;
+    if (zr < 1) return null;                       // behind near clip
+    const sx = w() / 2 + (x  * FOCAL) / zr;
+    const sy = h() / 2 - (yr * FOCAL) / zr;
+    return { sx, sy, depth: zr };
+  }
+
+  /* --------- Fog ---------
+     Near lines at full strength, far lines fade. Floor at 0.05 so the
+     horizon isn't completely invisible. */
+  function fog(depth) {
+    const k = 1 - (depth - NEAR_Z) / (FAR_Z - NEAR_Z);
+    return Math.max(0.05, Math.min(1, k));
+  }
+
+  /* --------- Main loop --------- */
+  let t = 0;
+  function draw() {
+    ctx.clearRect(0, 0, w(), h());
+
+    const zScroll = t * SCROLL_RATE;
+
+    // Build a 2D array of projected points. Doing this in one pass means
+    // we can draw both longitudinal and transverse lines without
+    // re-projecting.
+    const grid = new Array(ROWS);
+    for (let j = 0; j < ROWS; j++) {
+      const row = new Array(COLS);
+      const z = NEAR_Z + j * CELL;
+      for (let i = 0; i < COLS; i++) {
+        const x = -HALF_WIDTH + i * CELL;
+        const y = waveHeight(x, z + zScroll, t);
+        row[i] = project(x, y, z);
+      }
+      grid[j] = row;
+    }
+
+    ctx.lineWidth = LINE_WIDTH;
+
+    // Longitudinal lines (along Z, fixed column).
+    for (let i = 0; i < COLS; i++) {
+      for (let j = 0; j < ROWS - 1; j++) {
+        const a = grid[j][i], b = grid[j + 1][i];
+        if (!a || !b) continue;
+        const alpha = fog((a.depth + b.depth) / 2) * LINE_ALPHA;
+        ctx.strokeStyle = LINE_COLOR + alpha + ')';
+        ctx.beginPath();
+        ctx.moveTo(a.sx, a.sy);
+        ctx.lineTo(b.sx, b.sy);
+        ctx.stroke();
+      }
+    }
+
+    // Transverse lines (along X, fixed row).
+    for (let j = 0; j < ROWS; j++) {
+      for (let i = 0; i < COLS - 1; i++) {
+        const a = grid[j][i], b = grid[j][i + 1];
+        if (!a || !b) continue;
+        const alpha = fog((a.depth + b.depth) / 2) * LINE_ALPHA;
+        ctx.strokeStyle = LINE_COLOR + alpha + ')';
+        ctx.beginPath();
+        ctx.moveTo(a.sx, a.sy);
+        ctx.lineTo(b.sx, b.sy);
+        ctx.stroke();
+      }
+    }
+
+    t += TIME_STEP;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+</body>
+</html>

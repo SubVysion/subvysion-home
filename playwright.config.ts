@@ -3,14 +3,12 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   projects: [
     {
-      name: 'puppeteer-server',
+      name: 'chromium',
       use: {
-        ...devices['Desktop Chrome'],
-        headless: false,
-        channel: 'chrome',
-      },
-    },
+        ...devices['Desktop Chrome']
+      }
+    }
   ],
   testDir: './tests',
-  outputDir: './playwright-report',
+  outputDir: './playwright-report'
 });
