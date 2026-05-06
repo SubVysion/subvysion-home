@@ -4,15 +4,56 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SubVysion | Mapping Intelligence for Hidden Infrastructure</title>
+    <meta
+      name="description"
+      content="SubVysion delivers AI-powered AR maps of underground utilities. Multi-sensor GPR and 3D mapping with 99% accuracy — see what's below before you break it."
+    />
+    <meta name="theme-color" content="#1f2738" />
+
+    <!-- Open Graph / social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="SubVysion — AI-powered Underground Intelligence" />
+    <meta
+      property="og:description"
+      content="AR overlays of hidden infrastructure for crews and contractors."
+    />
+    <meta property="og:image" content="/SubVysionLogoFullWhite.webp" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- Preconnect to Google Fonts so the eventual font fetch is faster. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Preload the hero logo (LCP candidate) so the browser starts the
+         download in parallel with the JS bundle instead of waiting for
+         App.svelte to render. fetchpriority=high signals it's critical. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="image"
+      href="/SubVysionLogoFullWhite.webp"
+      type="image/webp"
+      fetchpriority="high"
     />
-    <script type="module" crossorigin src="/assets/index-BlUh_mBO.js"></script>
+
+    <!-- Non-render-blocking Google Fonts: swap the rel after load so the
+         browser can paint the page with the fallback font immediately,
+         then upgrade to Noto Sans when the file arrives. The <noscript>
+         path keeps it working with JS disabled. -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      />
+    </noscript>
+    <script type="module" crossorigin src="/assets/index-4HuCoDEQ.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-DaJ6qG42.css">
   </head>
   <body>

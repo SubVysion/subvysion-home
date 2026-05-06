@@ -114,24 +114,30 @@
 </script>
 
 <svelte:head>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
-    rel="stylesheet"
-  />
   <title>SubVysion — Mapping Intelligence for Hidden Infrastructure</title>
 </svelte:head>
 
 <!-- Fixed full-viewport video that sits behind everything. Revealed only
-     where a section's .section-bg is transparent (currently #trusted). -->
-<video class="reveal-video" autoplay muted loop playsinline preload="auto" src="/TopDownPio2.mp4" aria-hidden="true"></video>
+     where a section's .section-bg is transparent (currently #trusted).
+     preload="metadata" downloads only the container header up front
+     (kilobytes) instead of the full ~70 MB clip, which was the dominant
+     payload before any user interaction. The IntersectionObserver in
+     onMount() calls .play() once the trusted section enters the viewport,
+     and the browser fetches the rest of the file at that point. -->
+<video class="reveal-video" autoplay muted loop playsinline preload="metadata" src="/TopDownPio2.mp4" aria-hidden="true"></video>
 
 <!-- NAV -->
 <header class="nav">
   <div class="container nav-inner">
     <a href="#hero" class="brand" on:click={(e) => smoothScroll(e, '#hero')} aria-label="SubVysion">
-      <img src="/SubVysionLogoFullWhite.png" alt="SubVysion" class="brand-logo" />
+      <img
+        src="/SubVysionLogoFullWhite.webp"
+        alt="SubVysion"
+        class="brand-logo"
+        width="177"
+        height="40"
+        decoding="async"
+      />
     </a>
 
     <nav class="nav-links">
@@ -177,25 +183,56 @@
   >
     <div class="section-bg" aria-hidden="true">
       <div class="streetmock-bg">
-        <img
-          src="/streetmockupbefore.png"
-          alt=""
-          class="streetmock-img streetmock-before"
-          draggable="false"
-        />
-        <img
-          src="/streetmockupafter.png"
-          alt=""
-          class="streetmock-img streetmock-after"
-          draggable="false"
-        />
+        <!-- WebP cuts these from ~3.9 MB combined (PNG) to ~140 KB.
+             JPG fallbacks (~150 KB each) cover Safari < 14 and other
+             non-WebP browsers. Explicit width/height matches the
+             native image aspect ratio so the browser reserves layout
+             space (CLS=0). object-fit: cover in CSS still scales the
+             image to fill the hero. -->
+        <picture>
+          <source srcset="/streetmockupbefore.webp" type="image/webp" />
+          <img
+            src="/streetmockupbefore.jpg"
+            alt=""
+            class="streetmock-img streetmock-before"
+            width="1726"
+            height="1080"
+            draggable="false"
+            decoding="async"
+            fetchpriority="high"
+          />
+        </picture>
+        <picture>
+          <source srcset="/streetmockupafter.webp" type="image/webp" />
+          <img
+            src="/streetmockupafter.jpg"
+            alt=""
+            class="streetmock-img streetmock-after"
+            width="1306"
+            height="816"
+            draggable="false"
+            decoding="async"
+          />
+        </picture>
       </div>
     </div>
 
     <div class="hero-body">
       <div class="hero-intro">
-        <!-- Logo: fades in at t=0 over 1000ms. -->
-        <img src="/SubVysionLogoFullWhite.png" alt="SubVysion" class="hero-intro-logo" />
+        <!-- Logo: fades in at t=0 over 1000ms. Preloaded in index.html
+             with fetchpriority=high since this is the LCP candidate.
+             The intrinsic 1200×271 dimensions are baked in via width/
+             height attributes so the browser can compute the image's
+             aspect ratio before bytes arrive (zero CLS contribution). -->
+        <img
+          src="/SubVysionLogoFullWhite.webp"
+          alt="SubVysion"
+          class="hero-intro-logo"
+          width="1200"
+          height="271"
+          fetchpriority="high"
+          decoding="sync"
+        />
         <!-- Subheading: single descriptive line that fades in at t=1500ms
              after the logo settles. The phrase is long enough to wrap on
              smaller viewports — handled in CSS via max-width + balanced
@@ -364,14 +401,33 @@
         <div class="trust-bar-label">Trusted and Supported by:</div>
         <div class="trust-bar-window">
           <div class="trust-bar-track">
-            <div class="trust-logo"><img src="/logos/Pio_logo.png" alt="Pio" /></div>
-            <div class="trust-logo"><img src="/logos/SweetSpotLogo.webp" alt="SweetSpot" /></div>
-            <div class="trust-logo"><img src="/logos/VentureLabLogo.png" alt="VentureLab" /></div>
+            <!-- All logos converted to WebP and resized to render-near-size:
+                 SweetSpot was 2500×3302 (210 KiB) → 394×520 (45 KiB).
+                 VentureLab and Pio are tiny but the WebP encode still
+                 trims a few KiB. width/height attributes match the
+                 .trust-logo > img CSS render heights so the marquee
+                 lays out before the images arrive. loading="lazy" on
+                 the offscreen marquee tiles below the fold. -->
+            <div class="trust-logo">
+              <img src="/logos/Pio_logo.webp" alt="Pio" width="215" height="93" loading="lazy" decoding="async" />
+            </div>
+            <div class="trust-logo">
+              <img src="/logos/SweetSpotLogo.webp" alt="SweetSpot" width="394" height="520" loading="lazy" decoding="async" />
+            </div>
+            <div class="trust-logo">
+              <img src="/logos/VentureLabLogo.webp" alt="VentureLab" width="200" height="200" loading="lazy" decoding="async" />
+            </div>
             <div class="trust-logo trust-logo--text"><span>Gessler<br />Construction</span></div>
             <!-- Duplicate set so the marquee can loop without a visible jump. -->
-            <div class="trust-logo" aria-hidden="true"><img src="/logos/Pio_logo.png" alt="" /></div>
-            <div class="trust-logo" aria-hidden="true"><img src="/logos/SweetSpotLogo.webp" alt="" /></div>
-            <div class="trust-logo" aria-hidden="true"><img src="/logos/VentureLabLogo.png" alt="" /></div>
+            <div class="trust-logo" aria-hidden="true">
+              <img src="/logos/Pio_logo.webp" alt="" width="215" height="93" loading="lazy" decoding="async" />
+            </div>
+            <div class="trust-logo" aria-hidden="true">
+              <img src="/logos/SweetSpotLogo.webp" alt="" width="394" height="520" loading="lazy" decoding="async" />
+            </div>
+            <div class="trust-logo" aria-hidden="true">
+              <img src="/logos/VentureLabLogo.webp" alt="" width="200" height="200" loading="lazy" decoding="async" />
+            </div>
             <div class="trust-logo trust-logo--text" aria-hidden="true"><span>Gessler<br />Construction</span></div>
           </div>
         </div>

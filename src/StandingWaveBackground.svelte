@@ -28,6 +28,12 @@
   let grid = null;
   let gridCols = 0;
   let gridRows = 0;
+  // Pause flag set by an IntersectionObserver — true whenever the canvas
+  // is outside the viewport, so the rAF loop stops eating CPU on scroll
+  // for sections that aren't currently visible. Combined with the
+  // `paused` (document.hidden) flag, the animation only runs when both
+  // the tab is foregrounded AND this section is in view.
+  let offscreen = true;
 
   /* ---------- Tuning (from the reference) ---------- */
   const CELL = 5;
@@ -167,14 +173,14 @@
 
   function tick() {
     rafId = null;
-    if (paused || reducedMotion) return;
+    if (paused || reducedMotion || offscreen) return;
     t += TIME_STEP;
     draw();
     rafId = requestAnimationFrame(tick);
   }
 
   function ensureRunning() {
-    if (paused || reducedMotion) return;
+    if (paused || reducedMotion || offscreen) return;
     if (rafId == null) rafId = requestAnimationFrame(tick);
   }
 
@@ -200,7 +206,8 @@
 
     resize();
     draw();
-    ensureRunning();
+    // ensureRunning() intentionally omitted here — the IntersectionObserver
+    // set up below will start the loop as soon as the canvas is in view.
 
     const mmHandler = (e) => {
       reducedMotion = e.matches;
@@ -215,12 +222,38 @@
     const ro = new ResizeObserver(() => onResize());
     ro.observe(canvas);
 
+    // Viewport-driven pause: fire as soon as ANY pixel of the canvas
+    // enters/leaves the viewport (rootMargin extends the trigger zone
+    // so the animation has caught up by the time the section is visible).
+    let io = null;
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const en of entries) {
+            offscreen = !en.isIntersecting;
+            if (offscreen) {
+              if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            } else {
+              ensureRunning();
+            }
+          }
+        },
+        { rootMargin: '100px' }
+      );
+      io.observe(canvas);
+    } else {
+      // No IO support → behave as before (always considered onscreen).
+      offscreen = false;
+      ensureRunning();
+    }
+
     document.addEventListener('visibilitychange', onVisibility);
     if (mm.addEventListener) mm.addEventListener('change', mmHandler);
     else if (mm.addListener) mm.addListener(mmHandler);
 
     return () => {
       ro.disconnect();
+      if (io) io.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       if (mm.removeEventListener) mm.removeEventListener('change', mmHandler);
       else if (mm.removeListener) mm.removeListener(mmHandler);
