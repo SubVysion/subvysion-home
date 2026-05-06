@@ -73,6 +73,8 @@ img, svg { display: block; max-width: 100%; }
    just enables tabular figures so digits line up. */
 .mono { font-variant-numeric: tabular-nums; }
 .container { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+@media (max-width: 768px) { .container { padding: 0 20px; } }
+@media (max-width: 480px) { .container { padding: 0 16px; } }
 
 /* --- Per-section background slots ---
    Each <section> owns its own background. The .section-bg element is an
@@ -271,6 +273,7 @@ img, svg { display: block; max-width: 100%; }
 .hero {
   position: relative;
   min-height: 100vh;
+  min-height: 100svh;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -483,8 +486,9 @@ img, svg { display: block; max-width: 100%; }
 /* SECTIONS */
 /* Every section is at least one viewport tall so each one fills the screen
    when scrolled into view. Sections with content taller than 100vh
-   (Pricing, Contact on smaller viewports) still grow naturally. */
-.section { position: relative; padding: 140px 0; min-height: 100vh; }
+   (Pricing, Contact on smaller viewports) still grow naturally. svh
+   fallback handles iOS Safari's dynamic browser chrome correctly. */
+.section { position: relative; padding: 140px 0; min-height: 100vh; min-height: 100svh; }
 .grid-12 { display: grid; grid-template-columns: repeat(12, 1fr); gap: 64px; }
 .col-5 { grid-column: span 5; }
 .col-6 { grid-column: span 6; }
@@ -855,4 +859,185 @@ img, svg { display: block; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .radar-sweep, .radar-blip, .scroll-ind-bar { animation: none !important; }
   .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ---------------------------------------------------------------------
+   Responsive overrides — tablet + mobile
+   ---------------------------------------------------------------------
+   Layered on top of the base (desktop) rules so the structural CSS above
+   stays untouched. Three breakpoints:
+     - 980px: workflow + contact already stack here in base CSS; this block
+              tightens vertical/horizontal rhythm.
+     - 768px: tablet & large phones — section padding shrinks, panels
+              tighten, hero copy steps down.
+     - 480px: small phones — most aggressive scaling, including unwrapping
+              the trusted H2 and shrinking marquee tile widths.
+   --------------------------------------------------------------------- */
+
+/* Tablet + smaller-laptop tightening */
+@media (max-width: 980px) {
+  .section { padding: 96px 0; }
+  #workflow { padding: 80px 0 56px; }
+  #pricing { padding: 64px 0 96px; }
+  .grid-12 { gap: 40px; }
+  .contact-grid { gap: 40px; }
+  .pricing-tiles-cta { margin: 64px 0 20px; }
+  .footer { margin-top: 72px; padding-top: 28px; }
+  /* Trust-bar window opens up so two tiles are visible at once. */
+  .trust-bar-window { width: 60vw; }
+}
+
+/* Tablet portrait + large phones */
+@media (max-width: 768px) {
+  .section { padding: 80px 0; min-height: auto; }
+  .hero { min-height: 90vh; min-height: 90svh; }
+  #workflow { padding: 64px 0 48px; }
+  #pricing { padding: 56px 0 72px; }
+  .grid-12 { gap: 32px; }
+  .contact-grid { gap: 32px; }
+
+  /* Headline scale floors so type doesn't crowd small viewports. */
+  .h2 { font-size: clamp(28px, 6vw, 44px); margin-top: 16px; }
+  .lead-copy { font-size: 16px; margin-top: 20px; max-width: 100%; }
+
+  /* Step list tightens — narrower icon column, less vertical spacing. */
+  .step { grid-template-columns: 56px 1fr; gap: 16px; padding: 24px 0; }
+  .step-n svg { width: 32px; height: 32px; }
+  .step-title { font-size: 22px; }
+  .step-body { font-size: 15px; line-height: 1.5; }
+
+  /* Pricing + form panels — interior padding cut so they don't crowd
+     the container's already-shrunken side padding. */
+  .panel { padding: 28px 24px; }
+  .form-panel { padding: 24px; }
+  .plan-name { font-size: 26px; }
+  .plan-features { margin-top: 24px; }
+  .plan-cta { margin-top: 28px; width: 100%; justify-content: center; }
+
+  /* Trust-bar opens up to nearly full viewport width on mobile. */
+  .trust-bar-window { width: 88vw; }
+
+  /* Trusted section: drop the inset margin and the H2 nowrap so the
+     headline can flow onto two lines instead of clipping. */
+  .trusted-content { margin-left: 0; max-width: 100%; }
+  #trusted .h2 { font-size: clamp(24px, 5vw, 36px); white-space: normal; line-height: 1.15; }
+  #trusted .lead-copy { padding: 14px 18px; }
+  .chip-row { gap: 6px; margin-top: 20px; }
+  .chip { font-size: 13px; padding: 8px 14px; }
+
+  /* Workflow tagline pulls in tighter beneath the steps grid. */
+  .workflow-tagline { margin-top: 32px; }
+
+  /* Footer reads as a clean single column rather than awkwardly wrapped
+     metadata across two flex children. */
+  .footer { margin-top: 56px; padding-top: 24px; gap: 8px; flex-direction: column; align-items: flex-start; }
+
+  /* Nav: keep the demo CTA visible on tablet but slimmer. */
+  .nav { height: 64px; }
+  .brand-logo { height: 32px; }
+}
+
+/* Small phones (≤480px) — most aggressive scaling */
+@media (max-width: 480px) {
+  .section { padding: 64px 0; }
+  #workflow { padding: 56px 0 40px; }
+  #pricing { padding: 48px 0 64px; }
+  .grid-12 { gap: 28px; }
+  .contact-grid { gap: 28px; }
+
+  .h2 { font-size: clamp(26px, 7.5vw, 34px); }
+  #trusted .h2 { font-size: clamp(22px, 6.5vw, 30px); }
+  .lead-copy { font-size: 15px; }
+
+  .step { grid-template-columns: 44px 1fr; gap: 12px; padding: 20px 0; }
+  .step-n svg { width: 28px; height: 28px; }
+  .step-title { font-size: 19px; }
+  .step-body { font-size: 14px; }
+
+  .panel { padding: 24px 20px; border-radius: 14px; }
+  .plan-name { font-size: 22px; }
+  .plan-desc { font-size: 14px; margin-top: 12px; }
+  .plan-features { font-size: 14px; gap: 10px; }
+  .form-panel { padding: 20px; border-radius: 14px; gap: 16px; }
+
+  /* Workflow group label compresses; vertical spacing between the two
+     groups also tightens. */
+  .workflow-group-label { margin-bottom: 12px; font-size: 12px; }
+  .workflow-group-featured { margin-top: 24px; }
+
+  /* Buttons used inside content (pricing CTAs etc.) shrink — nav demo
+     CTA is overridden separately further below. */
+  .btn { padding: 12px 18px; font-size: 14px; }
+
+  /* Trust bar: stays at 90vw window (set above), but tile widths shrink
+     so multiple tiles fit. The marquee keyframe still translates by
+     1200px, which is exactly one full set of tiles at the BASE 240×60
+     dimensions, so we override the keyframe distance to match the new
+     tile size: 4 × 160 + 4 × 36 = 784px. */
+  .trust-bar-window { width: 92vw; }
+  .trust-bar-track { gap: 36px; animation-name: trust-scroll-mobile; animation-duration: 20s; }
+  .trust-logo { width: 160px; height: 80px; padding: 6px; }
+  .trust-logo > img { height: 60px; }
+  .trust-logo > img[src*="SweetSpot"] { height: 90px; }
+  .trust-logo > img[src*="VentureLab"] { height: 110px; }
+  .trust-logo:not(.trust-logo--text) > img[src*="VentureLab"] { padding: 6px 20px; }
+  .trust-logo--text { font-size: 16px; }
+
+  /* Nav: keep the brand visible; demo CTA already hidden at 560px. */
+  .nav { height: 60px; }
+  .brand-logo { height: 28px; }
+
+  /* Hero intro: tighter gap and smaller logo so the stack fits even on
+     short landscape phones without being clipped. */
+  .hero-intro { gap: 24px; transform: translateY(-2%); }
+  .hero-intro-logo { height: clamp(72px, 22vw, 120px); }
+  .hero-intro-title { font-size: clamp(18px, 5.5vw, 26px); }
+
+  /* Footer text shrinks one more step — letterspacing was 0.2em which
+     reads cramped at 11px; loosen it slightly. */
+  .footer { font-size: 11px; letter-spacing: 0.18em; }
+
+  /* Section transition fog band shrinks proportionally. */
+  .transition-fx { height: 40px; }
+}
+
+/* Mobile-specific marquee keyframe — matches the smaller tile dimensions
+   declared at the 480px breakpoint so the loop still wraps without a
+   visible jump. (Set width = 4×160 + 4×36 = 784px.) */
+@keyframes trust-scroll-mobile {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-784px); }
+}
+
+/* Very small phones (≤360px) — guard against clipping on tiny devices. */
+@media (max-width: 360px) {
+  .container { padding: 0 14px; }
+  .h2 { font-size: clamp(24px, 8vw, 30px); }
+  .step-title { font-size: 17px; }
+  .panel { padding: 20px 16px; }
+  .form-panel { padding: 16px; }
+  .chip { font-size: 12px; padding: 7px 12px; }
+}
+
+/* Landscape phones / short viewports — hero stack would overflow if
+   logo + tagline take their default heights, so compress vertically. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .hero { min-height: 100svh; }
+  .hero-intro { gap: 16px; transform: none; }
+  .hero-intro-logo { height: 64px; }
+  .hero-intro-title { font-size: 18px; }
+}
+
+/* Touch-device tweak: hover-driven streetmock reveal can't fire on touch,
+   so on coarse pointers we show the "after" image at a low static opacity
+   so the dual-image concept is still visible without the spotlight. */
+@media (hover: none) and (pointer: coarse) {
+  .streetmock-after {
+    opacity: 0.5;
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+  .streetmock-before { opacity: 0.4; }
+  .panel:hover { transform: none; box-shadow: none; }
+  .chip:hover { transform: none; }
 }
